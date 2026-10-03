@@ -1,0 +1,9 @@
+[build]
+base = "artifacts/parksync"
+command = "test -n \"$VITE_API_BASE_URL\" || (echo 'Set VITE_API_BASE_URL to your Render API URL ending in /api.' >&2; exit 1); npm install --include=dev && npm run build"
+publish = "dist/public"
+
+[build.environment]
+BASE_PATH = "/"
+PORT = "5173"
+NODE_VERSION = "22.13.0"

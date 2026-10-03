@@ -1,0 +1,1030 @@
+openapi: 3.1.0
+info:
+  # Do not change the title; generated import paths depend on it.
+  title: Api
+  version: 1.0.0
+  description: PARKSYNC REST API contract. The Java Spring Boot service is the source of truth.
+servers:
+  - url: /api
+    description: Replit development proxy and API context path
+tags:
+  - name: health
+  - name: authentication
+  - name: customer
+  - name: locations
+  - name: bookings
+  - name: admin
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Check API health
+      security: []
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /v1/auth/register:
+    post:
+      operationId: registerCustomer
+      tags: [authentication]
+      summary: Register a customer account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already registered
+  /v1/auth/login:
+    post:
+      operationId: login
+      tags: [authentication]
+      summary: Authenticate a customer or administrator
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [authentication]
+      summary: End the current session
+      responses:
+        "204":
+          description: Logged out
+  /v1/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [authentication]
+      summary: Return the signed-in user
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /v1/profile:
+    patch:
+      operationId: updateProfile
+      tags: [customer]
+      summary: Update the signed-in user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /v1/profile/password:
+    patch:
+      operationId: changePassword
+      tags: [customer]
+      summary: Change the signed-in user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordChangeInput"
+      responses:
+        "204":
+          description: Password changed
+  /v1/dashboard:
+    get:
+      operationId: getCustomerDashboard
+      tags: [customer]
+      summary: Get customer dashboard data from persisted records
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerDashboard"
+  /v1/vehicles:
+    get:
+      operationId: listVehicles
+      tags: [customer]
+      summary: List the signed-in user's vehicles
+      responses:
+        "200":
+          description: Vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+    post:
+      operationId: createVehicle
+      tags: [customer]
+      summary: Add a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+  /v1/vehicles/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateVehicle
+      tags: [customer]
+      summary: Update an owned vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "200":
+          description: Updated vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    delete:
+      operationId: deleteVehicle
+      tags: [customer]
+      summary: Delete an owned vehicle when it has no active booking
+      responses:
+        "204":
+          description: Vehicle deleted
+  /v1/locations:
+    get:
+      operationId: listLocations
+      tags: [locations]
+      summary: Search active parking facilities
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: vehicleType
+          in: query
+          schema: { type: string }
+        - name: availableOnly
+          in: query
+          schema: { type: boolean }
+        - name: maxHourlyRate
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [price, availability, name] }
+      responses:
+        "200":
+          description: Matching parking locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingLocation"
+  /v1/locations/{id}:
+    get:
+      operationId: getLocation
+      tags: [locations]
+      summary: Get a parking location
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Location
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLocation"
+  /v1/locations/{id}/slots:
+    get:
+      operationId: listLocationSlots
+      tags: [locations]
+      summary: List slot status and vehicle compatibility
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Parking slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingSlot"
+  /v1/bookings/quote:
+    post:
+      operationId: quoteBooking
+      tags: [bookings]
+      summary: Calculate a server-side price estimate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingQuoteInput"
+      responses:
+        "200":
+          description: Fee estimate and eligible slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingQuote"
+  /v1/bookings:
+    get:
+      operationId: listMyBookings
+      tags: [bookings]
+      summary: List the signed-in user's bookings
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Booking history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Reserve an available slot transactionally
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "409":
+          description: Slot is no longer available for the requested period
+  /v1/bookings/{id}:
+    get:
+      operationId: getMyBooking
+      tags: [bookings]
+      summary: Get an owned booking
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /v1/bookings/{id}/cancel:
+    post:
+      operationId: cancelMyBooking
+      tags: [bookings]
+      summary: Cancel an eligible booking without deleting its history
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Cancelled booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /v1/payments:
+    get:
+      operationId: listMyPayments
+      tags: [customer]
+      summary: List payment records for the signed-in user
+      responses:
+        "200":
+          description: Payment records; demo payments are labelled
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+  /v1/payments/demo:
+    post:
+      operationId: createDemoPayment
+      tags: [customer]
+      summary: Record a clearly labelled demonstration payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoPaymentInput"
+      responses:
+        "201":
+          description: Demo payment record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+  /v1/notifications:
+    get:
+      operationId: listNotifications
+      tags: [customer]
+      summary: List in-app notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /v1/notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [customer]
+      summary: Mark a notification as read
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Notification marked read
+  /v1/support:
+    get:
+      operationId: listMySupportTickets
+      tags: [customer]
+      summary: List the signed-in user's support requests
+      responses:
+        "200":
+          description: Support requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicket"
+    post:
+      operationId: createSupportTicket
+      tags: [customer]
+      summary: Submit a support request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportInput"
+      responses:
+        "201":
+          description: Support request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+  /v1/admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Database-backed operations overview
+      responses:
+        "200":
+          description: Counts and demo-labelled payment totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+  /v1/admin/users:
+    get:
+      operationId: listUsers
+      tags: [admin]
+      summary: Search registered users
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Users without password hashes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+  /v1/admin/users/{id}/active:
+    patch:
+      operationId: setUserActive
+      tags: [admin]
+      summary: Activate or deactivate a user account
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActiveInput"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+  /v1/admin/locations:
+    get:
+      operationId: listAdminLocations
+      tags: [admin]
+      summary: List all facilities, including inactive facilities
+      responses:
+        "200":
+          description: Operator facility list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingLocation"
+    post:
+      operationId: createLocation
+      tags: [admin]
+      summary: Add a parking facility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationInput"
+      responses:
+        "201":
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLocation"
+  /v1/admin/locations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateLocation
+      tags: [admin]
+      summary: Update a facility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LocationInput"
+      responses:
+        "200":
+          description: Updated facility
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingLocation"
+    delete:
+      operationId: deactivateLocation
+      tags: [admin]
+      summary: Deactivate a facility without deleting history
+      responses:
+        "204":
+          description: Facility deactivated
+  /v1/admin/locations/{id}/active:
+    patch:
+      operationId: setLocationActive
+      tags: [admin]
+      summary: Activate or deactivate a parking facility
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActiveInput"
+      responses:
+        "204":
+          description: Facility status updated
+  /v1/admin/locations/{id}/slots:
+    get:
+      operationId: listAdminLocationSlots
+      tags: [admin]
+      summary: List slots for an active or inactive facility
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Parking slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParkingSlot"
+    post:
+      operationId: createSlot
+      tags: [admin]
+      summary: Add a parking slot
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotInput"
+      responses:
+        "201":
+          description: Slot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingSlot"
+  /v1/admin/slots/{id}:
+    put:
+      operationId: updateSlot
+      tags: [admin]
+      summary: Update slot details or status
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SlotInput"
+      responses:
+        "200":
+          description: Updated slot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParkingSlot"
+  /v1/admin/bookings:
+    get:
+      operationId: listAllBookings
+      tags: [admin]
+      summary: Search bookings across all customers
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: locationId
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Matching bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+  /v1/admin/bookings/{id}/entry:
+    post:
+      operationId: recordEntry
+      tags: [admin]
+      summary: Verify a booking and record vehicle entry
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /v1/admin/bookings/{id}/exit:
+    post:
+      operationId: recordExit
+      tags: [admin]
+      summary: Record exit and calculate final fee
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Completed booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /v1/admin/payments:
+    get:
+      operationId: listAllPayments
+      tags: [admin]
+      summary: Search payment records
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+  /v1/admin/reports:
+    get:
+      operationId: getAdminReports
+      tags: [admin]
+      summary: Booking, occupancy, vehicle, cancellation and demo-payment summaries
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Report summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+  /v1/admin/support:
+    get:
+      operationId: listAllSupportTickets
+      tags: [admin]
+      summary: List customer support requests
+      responses:
+        "200":
+          description: Support requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicket"
+  /v1/admin/support/{id}/reply:
+    post:
+      operationId: replyToSupportTicket
+      tags: [admin]
+      summary: Respond to and update a support request
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportReplyInput"
+      responses:
+        "200":
+          description: Updated support request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    RegistrationInput:
+      type: object
+      required: [name, email, phone, password, termsAccepted]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        email: { type: string, format: email }
+        phone: { type: string, minLength: 7, maxLength: 30 }
+        password:
+          type: string
+          minLength: 10
+          maxLength: 72
+          description: 10–72 characters including upper/lower case, a number and a symbol.
+        termsAccepted: { type: boolean, const: true }
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    User:
+      type: object
+      required: [id, name, email, role, active, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        role: { type: string, enum: [CUSTOMER, ADMIN] }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string }
+        user: { $ref: "#/components/schemas/User" }
+    ProfileUpdate:
+      type: object
+      required: [name, phone]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        phone: { type: string, minLength: 7, maxLength: 30 }
+    PasswordChangeInput:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string }
+        newPassword: { type: string, minLength: 10 }
+    Vehicle:
+      type: object
+      required: [id, registration, type, brand, model]
+      properties:
+        id: { type: integer, format: int64 }
+        registration: { type: string }
+        type: { type: string, enum: [CAR, MOTORCYCLE, SCOOTER, OTHER] }
+        brand: { type: string }
+        model: { type: string }
+        color: { type: ["string", "null"] }
+    VehicleInput:
+      type: object
+      required: [registration, type, brand, model]
+      properties:
+        registration: { type: string, minLength: 4, maxLength: 20 }
+        type: { type: string, enum: [CAR, MOTORCYCLE, SCOOTER, OTHER] }
+        brand: { type: string, minLength: 1, maxLength: 80 }
+        model: { type: string, minLength: 1, maxLength: 80 }
+        color: { type: ["string", "null"] }
+    ParkingLocation:
+      type: object
+      required: [id, name, address, category, description, operatingHours, hourlyRate, totalSlots, availableSlots, occupiedSlots, active, demoData]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        address: { type: string }
+        area: { type: string }
+        category: { type: string }
+        description: { type: string }
+        operatingHours: { type: string }
+        supportedVehicleTypes:
+          type: array
+          items: { type: string }
+        hourlyRate: { type: number, format: double }
+        totalSlots: { type: integer }
+        availableSlots: { type: integer }
+        occupiedSlots: { type: integer }
+        active: { type: boolean }
+        demoData: { type: boolean }
+        mapUrl: { type: ["string", "null"], format: uri }
+    LocationInput:
+      type: object
+      required: [name, address, area, category, description, operatingHours, hourlyRate, supportedVehicleTypes]
+      properties:
+        name: { type: string, minLength: 2, maxLength: 150 }
+        address: { type: string, minLength: 5, maxLength: 300 }
+        area: { type: string }
+        category: { type: string, enum: [MALL, PUBLIC, STANDALONE, OTHER] }
+        description: { type: string, maxLength: 1000 }
+        operatingHours: { type: string }
+        supportedVehicleTypes:
+          type: array
+          items: { type: string, enum: [CAR, MOTORCYCLE, SCOOTER, OTHER] }
+        hourlyRate: { type: number, minimum: 0.01 }
+        mapUrl: { type: ["string", "null"], format: uri }
+    ParkingSlot:
+      type: object
+      required: [id, locationId, code, status, vehicleTypes]
+      properties:
+        id: { type: integer, format: int64 }
+        locationId: { type: integer, format: int64 }
+        code: { type: string }
+        status: { type: string, enum: [AVAILABLE, OCCUPIED, RESERVED, DISABLED] }
+        vehicleTypes:
+          type: array
+          items: { type: string }
+        hourlyRate: { type: ["number", "null"], format: double }
+    SlotInput:
+      type: object
+      required: [code, status, vehicleTypes]
+      properties:
+        code: { type: string }
+        status: { type: string, enum: [AVAILABLE, OCCUPIED, RESERVED, DISABLED] }
+        vehicleTypes:
+          type: array
+          items: { type: string, enum: [CAR, MOTORCYCLE, SCOOTER, OTHER] }
+        hourlyRate: { type: ["number", "null"], minimum: 0.01 }
+    BookingQuoteInput:
+      type: object
+      required: [locationId, vehicleId, startAt, endAt]
+      properties:
+        locationId: { type: integer, format: int64 }
+        vehicleId: { type: integer, format: int64 }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+    BookingQuote:
+      type: object
+      required: [estimatedFee, billableHours, currency, slots]
+      properties:
+        estimatedFee: { type: number, format: double }
+        billableHours: { type: integer }
+        currency: { type: string, enum: [INR] }
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/ParkingSlot" }
+        pricingRule: { type: string }
+    BookingInput:
+      allOf:
+        - $ref: "#/components/schemas/BookingQuoteInput"
+        - type: object
+          required: [slotId]
+          properties:
+            slotId: { type: integer, format: int64 }
+    Booking:
+      type: object
+      required: [id, reference, locationName, slotCode, vehicleRegistration, startAt, endAt, status, estimatedFee, paymentStatus]
+      properties:
+        id: { type: integer, format: int64 }
+        reference: { type: string }
+        locationId: { type: integer, format: int64 }
+        locationName: { type: string }
+        slotId: { type: integer, format: int64 }
+        slotCode: { type: string }
+        vehicleRegistration: { type: string }
+        customerName: { type: string }
+        startAt: { type: string, format: date-time }
+        endAt: { type: string, format: date-time }
+        entryAt: { type: ["string", "null"], format: date-time }
+        exitAt: { type: ["string", "null"], format: date-time }
+        status: { type: string, enum: [UPCOMING, ACTIVE, COMPLETED, CANCELLED] }
+        estimatedFee: { type: number, format: double }
+        finalFee: { type: ["number", "null"], format: double }
+        paymentStatus: { type: string, enum: [UNPAID, PAID, DEMO_PAID] }
+    CustomerDashboard:
+      type: object
+      required: [vehicles, recentBookings, notifications, activeBookingCount]
+      properties:
+        vehicles:
+          type: array
+          items: { $ref: "#/components/schemas/Vehicle" }
+        recentBookings:
+          type: array
+          items: { $ref: "#/components/schemas/Booking" }
+        notifications:
+          type: array
+          items: { $ref: "#/components/schemas/Notification" }
+        activeBookingCount: { type: integer }
+    Payment:
+      type: object
+      required: [id, reference, bookingReference, amount, method, status, demo, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        reference: { type: string }
+        bookingReference: { type: string }
+        amount: { type: number, format: double }
+        method: { type: string }
+        status: { type: string }
+        demo: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    DemoPaymentInput:
+      type: object
+      required: [bookingId, method]
+      properties:
+        bookingId: { type: integer, format: int64 }
+        method: { type: string, enum: [DEMO_CASH, DEMO_CARD, DEMO_UPI] }
+    Notification:
+      type: object
+      required: [id, title, message, createdAt, read]
+      properties:
+        id: { type: integer, format: int64 }
+        title: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+        read: { type: boolean }
+    SupportInput:
+      type: object
+      required: [category, subject, description]
+      properties:
+        category: { type: string }
+        subject: { type: string }
+        description: { type: string, minLength: 10, maxLength: 3000 }
+    SupportReplyInput:
+      type: object
+      required: [response, status]
+      properties:
+        response: { type: string, minLength: 1, maxLength: 3000 }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+    SupportTicket:
+      type: object
+      required: [id, category, subject, description, status, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        customerName: { type: string }
+        category: { type: string }
+        subject: { type: string }
+        description: { type: string }
+        response: { type: ["string", "null"] }
+        status: { type: string, enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED] }
+        createdAt: { type: string, format: date-time }
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupportMessage"
+    SupportMessage:
+      type: object
+      required: [id, authorName, authorRole, message, createdAt]
+      properties:
+        id: { type: integer, format: int64 }
+        authorName: { type: string }
+        authorRole: { type: string, enum: [CUSTOMER, ADMIN] }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+    ActiveInput:
+      type: object
+      required: [active]
+      properties:
+        active: { type: boolean }
+    AdminOverview:
+      type: object
+      required: [counts, demoPaymentsTotal, recentBookings, vehicleCategoryCounts, bookingsByFacility, peakArrivalHours]
+      properties:
+        counts:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+        demoPaymentsTotal: { type: number, format: double }
+        recentBookings:
+          type: array
+          items: { $ref: "#/components/schemas/Booking" }
+        vehicleCategoryCounts:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+        bookingsByFacility:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+        peakArrivalHours:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+        from: { type: ["string", "null"], format: date }
+        to: { type: ["string", "null"], format: date }
+

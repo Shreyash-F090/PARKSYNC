@@ -1,0 +1,10 @@
+{
+  "name": "@workspace/api-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bash ../../backend/run-local.sh",
+    "build": "bash ../../backend/build.sh",
+    "start": "bash ../../backend/start.sh"
+  }
+}
