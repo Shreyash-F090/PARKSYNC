@@ -44,7 +44,8 @@ public class SecurityConfig {
                 }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/healthz", "/v1/auth/**").permitAll()
+                        .requestMatchers("/healthz").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/v1/auth/register", "/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/locations/**").permitAll()
                         .requestMatchers("/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

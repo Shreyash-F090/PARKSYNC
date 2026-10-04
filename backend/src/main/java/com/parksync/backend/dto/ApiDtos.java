@@ -53,7 +53,8 @@ public final class ApiDtos {
             @NotBlank @Size(max = 100) String operatingHours,
             @NotEmpty Set<VehicleType> supportedVehicleTypes,
             @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2) BigDecimal hourlyRate,
-            @Size(max = 500) String mapUrl) { }
+            @Size(max = 500) @Pattern(regexp = "(?i)https?://\\S+",
+                    message = "Map URL must start with http:// or https://.") String mapUrl) { }
 
     public record LocationDto(Long id, String name, String address, String area, String category,
                               String description, String operatingHours, Set<VehicleType> supportedVehicleTypes,

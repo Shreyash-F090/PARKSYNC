@@ -166,6 +166,16 @@ public class LocationService {
         return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    private static String safeMapUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        String trimmed = value.trim();
+        if (!trimmed.regionMatches(true, 0, "http://", 0, 7)
+                && !trimmed.regionMatches(true, 0, "https://", 0, 8)) {
+            throw ApiException.badRequest("Map URL must start with http:// or https://.");
+        }
+        return trimmed;
+    }
+
     private static void apply(ParkingLocation location, LocationInput input) {
         location.setName(input.name().trim());
         location.setAddress(input.address().trim());
@@ -175,7 +185,7 @@ public class LocationService {
         location.setOperatingHours(input.operatingHours().trim());
         location.setSupportedVehicleTypes(Set.copyOf(input.supportedVehicleTypes()));
         location.setHourlyRate(input.hourlyRate());
-        location.setMapUrl(input.mapUrl() == null || input.mapUrl().isBlank() ? null : input.mapUrl().trim());
+        location.setMapUrl(safeMapUrl(input.mapUrl()));
     }
 
     private static void apply(ParkingSlot slot, SlotInput input) {
