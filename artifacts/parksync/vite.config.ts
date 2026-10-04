@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import path from 'node:path';
 
 const rawPort = process.env.PORT || '5173';
 const port = Number(rawPort);
@@ -8,12 +9,13 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH || '/';
+const projectRoot = __dirname;
 
 export default defineConfig({
   base: basePath,
-  root: new URL('.', import.meta.url).pathname,
+  root: projectRoot,
   build: {
-    outDir: new URL('./dist/public', import.meta.url).pathname,
+    outDir: path.resolve(projectRoot, 'dist/public'),
     emptyOutDir: true,
   },
   server: {
