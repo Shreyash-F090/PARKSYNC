@@ -23,13 +23,14 @@ async function request(path, { method = 'GET', body, query, auth = true } = {}) 
   if (response.status === 401 && auth) {
     session.clear();
     window.dispatchEvent(new CustomEvent('parksync:unauthorized'));
-    throw new Error('Your session has expired. Please sign in again.');
+    throw new Error('Your session expired. Please sign in again.');
   }
   if (!response.ok) {
     let message = `Request failed (${response.status}).`;
     try {
       const data = await response.json();
-      message = data.message || data.error || message;
+      const fieldError = data.fieldErrors && Object.values(data.fieldErrors).find(value => value);
+      message = fieldError || data.message || data.error || message;
     } catch {}
     throw new Error(message);
   }
