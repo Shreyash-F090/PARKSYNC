@@ -14,11 +14,16 @@ async function request(path, { method = 'GET', body, query, auth = true } = {}) 
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && session.token) headers.Authorization = `Bearer ${session.token}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
   let response;
   try {
-    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
+    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('PARKSYNC took too long to respond. Try again.');
     throw new Error('Could not reach PARKSYNC. Check your connection and try again.');
+  } finally {
+    clearTimeout(timer);
   }
   if (response.status === 401 && auth) {
     session.clear();

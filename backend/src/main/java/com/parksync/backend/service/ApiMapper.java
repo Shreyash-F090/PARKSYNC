@@ -19,10 +19,14 @@ public final class ApiMapper {
                 vehicle.getBrand(), vehicle.getModel(), vehicle.getColor());
     }
 
-    public static LocationDto location(ParkingLocation location, List<ParkingSlot> slots) {
+    public static LocationDto location(ParkingLocation location, List<ParkingSlot> slots, Set<Long> reservedNow) {
+        Set<Long> reserved = reservedNow == null ? Set.of() : reservedNow;
         int total = (int) slots.stream().filter(slot -> slot.getStatus() != SlotStatus.DISABLED).count();
-        int available = (int) slots.stream().filter(slot -> slot.getStatus() == SlotStatus.AVAILABLE).count();
         int occupied = (int) slots.stream().filter(slot -> slot.getStatus() == SlotStatus.OCCUPIED).count();
+        int available = (int) slots.stream()
+                .filter(slot -> slot.getStatus() != SlotStatus.DISABLED && slot.getStatus() != SlotStatus.OCCUPIED)
+                .filter(slot -> !reserved.contains(slot.getId()))
+                .count();
         return new LocationDto(location.getId(), location.getName(), location.getAddress(), location.getArea(),
                 location.getCategory(), location.getDescription(), location.getOperatingHours(),
                 Set.copyOf(location.getSupportedVehicleTypes()), location.getHourlyRate(), total,

@@ -3,6 +3,7 @@ import './styles.css';
 
 const app = document.querySelector('#app');
 let user = null;
+let pageRequest = 0;
 let currentLocation = null;
 let slotsCache = [];
 let selectedSlot = null;
@@ -56,17 +57,20 @@ function authPage(mode='login',error=''){
   }
 }
 async function loadPage(){
+  const requestId=++pageRequest;
   const route=routeName();
-  if(!session.token){authPage();return;}
+  if(!session.token){if(requestId===pageRequest)authPage();return;}
   app.innerHTML=loading();
   try{
     if(!user) user=await api.me();
+    if(requestId!==pageRequest)return;
     if(user?.role==='ADMIN'&&!route.startsWith('admin')){setRoute('admin');return;}
     if(user?.role!=='ADMIN'&&route.startsWith('admin')){setRoute('dashboard');return;}
     const html=await renderRoute(route,routeParts()[1]);
-    if(routeName()!==route)return;
+    if(requestId!==pageRequest||routeName()!==route)return;
     app.innerHTML=shell(route,html);
   }catch(error){
+    if(requestId!==pageRequest)return;
     if(!session.token){authPage('login', error.message);return;}
     app.innerHTML=shell(route,failed(error,'retry'));
   }
@@ -132,8 +136,11 @@ async function locationDetails(id){
   if(String(currentLocation?.id)!==String(l.id)){selectedSlot=null;quoteCache=null;quoteParams=null;}
   currentLocation=l;slotsCache=listOf(slots);
   let vehicles=listOf(await api.vehicles());
-  const available=slotsCache.filter(s=>s.status==='AVAILABLE');
-  return `${heading(esc(l.name),'Choose a compatible slot and your visit times.',`<a class="btn btn-secondary" href="#/search">← All facilities</a>`)}${l.demoData?'<div class="alert" data-testid="notice-location-demo">Demo facility data — facility details and availability are for demonstration. Booking requests are sent to the server.</div>':''}<div class="split"><section class="grid"><div class="panel"><div class="panel-title"><h2>Facility details</h2>${status(l.active?'ACTIVE':'INACTIVE')}</div><p class="muted">${esc(l.address)}${l.area?` · ${esc(l.area)}`:''}</p><p>${esc(l.description||'')}</p><div class="kv"><span>Operating hours</span><strong>${esc(l.operatingHours||'—')}</strong></div><div class="kv"><span>Rate</span><strong>${money(l.hourlyRate)} / hour</strong></div><div class="kv"><span>Supported vehicles</span><strong>${esc((l.supportedVehicleTypes||[]).join(', ')||'—')}</strong></div>${safeMapUrl(l.mapUrl)?`<a class="text-button" href="${esc(safeMapUrl(l.mapUrl))}" target="_blank" rel="noopener">Open facility map ↗</a>`:''}</div><div class="panel"><div class="panel-title"><h2>Choose a slot</h2><span class="badge ok">${available.length} AVAILABLE</span></div>${slotsCache.length?`<div class="slot-grid">${slotsCache.map(s=>`<button class="slot ${String(selectedSlot?.id)===String(s.id)?'selected':''}" data-action="choose-slot" data-id="${esc(s.id)}" ${s.status!=='AVAILABLE'?'disabled':''} aria-pressed="${String(selectedSlot?.id)===String(s.id)}" data-testid="slot-${esc(s.code)}">${esc(s.code)}<br>${esc(s.status)}</button>`).join('')}</div>`:empty('Slot data unavailable','No slot records were returned for this facility.')}</div></section><aside class="panel"><div class="panel-title"><h2>Plan your visit</h2><span class="badge">RESERVE</span></div>${vehicles.length?`<form data-form="quote">${select('Vehicle','vehicleId',vehicles.map(v=>[String(v.id),`${v.registration} · ${v.brand} ${v.model}`]),quoteParams?.vehicleId||'')}${input('Arrival','startAt','datetime-local',quoteParams?.startLocal||'', '',true)}${input('Departure','endAt','datetime-local',quoteParams?.endLocal||'', '',true)}<button class="btn btn-secondary btn-block" type="submit" data-testid="button-get-quote">Get server quote</button></form>`:`${empty('Add a vehicle first','Vehicle details are required to check compatible spaces.',btn('Add vehicle','go-vehicles'))}`}${quoteCache?`<div class="notice" data-testid="quote-summary"><strong>Estimate: ${money(quotedAmount().fee)}</strong><div>${quotedAmount().hours} billable hour${quotedAmount().hours===1?'':'s'} · ${esc(quoteCache.currency||'INR')}</div>${quoteCache.pricingRule?`<small>${esc(quoteCache.pricingRule)}</small>`:''}</div>`:''}${selectedSlot&&quoteCache?`<div class="kv"><span>Selected slot</span><strong>${esc(selectedSlot.code)}</strong></div><button class="btn btn-primary btn-block" data-action="confirm-booking" data-testid="button-confirm-booking">Confirm reservation</button>`:''}<p class="footer-note" style="margin-top:16px">Billable hours come from the PARKSYNC server. The estimate uses the selected slot rate when one is set, otherwise the facility rate. A slot is reserved only after the confirmation succeeds.</p></aside></div>`;
+  const intervalChosen=Array.isArray(quoteCache?.slots);
+  const openIds=new Set((quoteCache?.slots||[]).map(s=>String(s.id)));
+  const bookable=s=>s.status!=='DISABLED'&&(!intervalChosen||openIds.has(String(s.id)));
+  const availableCount=intervalChosen?quoteCache.slots.length:Number(l.availableSlots??0);
+  return `${heading(esc(l.name),'Choose a compatible slot and your visit times.',`<a class="btn btn-secondary" href="#/search">← All facilities</a>`)}${l.demoData?'<div class="alert" data-testid="notice-location-demo">Demo facility data — facility details and availability are for demonstration. Booking requests are sent to the server.</div>':''}<div class="split"><section class="grid"><div class="panel"><div class="panel-title"><h2>Facility details</h2>${status(l.active?'ACTIVE':'INACTIVE')}</div><p class="muted">${esc(l.address)}${l.area?` · ${esc(l.area)}`:''}</p><p>${esc(l.description||'')}</p><div class="kv"><span>Operating hours</span><strong>${esc(l.operatingHours||'—')}</strong></div><div class="kv"><span>Rate</span><strong>${money(l.hourlyRate)} / hour</strong></div><div class="kv"><span>Supported vehicles</span><strong>${esc((l.supportedVehicleTypes||[]).join(', ')||'—')}</strong></div>${safeMapUrl(l.mapUrl)?`<a class="text-button" href="${esc(safeMapUrl(l.mapUrl))}" target="_blank" rel="noopener">Open facility map ↗</a>`:''}</div><div class="panel"><div class="panel-title"><h2>Choose a slot</h2><span class="badge ok">${availableCount} AVAILABLE</span></div>${slotsCache.length?`<div class="slot-grid">${slotsCache.map(s=>`<button class="slot ${String(selectedSlot?.id)===String(s.id)?'selected':''}" data-action="choose-slot" data-id="${esc(s.id)}" ${bookable(s)?'':'disabled'} aria-pressed="${String(selectedSlot?.id)===String(s.id)}" data-testid="slot-${esc(s.code)}">${esc(s.code)}<br>${esc(s.status)}</button>`).join('')}</div>`:empty('Slot data unavailable','No slot records were returned for this facility.')}</div></section><aside class="panel"><div class="panel-title"><h2>Plan your visit</h2><span class="badge">RESERVE</span></div>${vehicles.length?`<form data-form="quote">${select('Vehicle','vehicleId',vehicles.map(v=>[String(v.id),`${v.registration} · ${v.brand} ${v.model}`]),quoteParams?.vehicleId||'')}${input('Arrival','startAt','datetime-local',quoteParams?.startLocal||'', '',true)}${input('Departure','endAt','datetime-local',quoteParams?.endLocal||'', '',true)}<button class="btn btn-secondary btn-block" type="submit" data-testid="button-get-quote">Get server quote</button></form>`:`${empty('Add a vehicle first','Vehicle details are required to check compatible spaces.',btn('Add vehicle','go-vehicles'))}`}${quoteCache?`<div class="notice" data-testid="quote-summary"><strong>Estimate: ${money(quotedAmount().fee)}</strong><div>${quotedAmount().hours} billable hour${quotedAmount().hours===1?'':'s'} · ${esc(quoteCache.currency||'INR')}</div>${quoteCache.pricingRule?`<small>${esc(quoteCache.pricingRule)}</small>`:''}</div>`:''}${selectedSlot&&quoteCache?`<div class="kv"><span>Selected slot</span><strong>${esc(selectedSlot.code)}</strong></div><button class="btn btn-primary btn-block" data-action="confirm-booking" data-testid="button-confirm-booking">Confirm reservation</button>`:''}<p class="footer-note" style="margin-top:16px">Billable hours come from the PARKSYNC server. The estimate uses the selected slot rate when one is set, otherwise the facility rate. A slot is reserved only after the confirmation succeeds.</p></aside></div>`;
 }
 async function customerBookings(){
   const bookings=listOf(await api.bookings());
@@ -194,12 +201,11 @@ async function submitForm(form){
   }
   if(kind==='search'){const q=new URLSearchParams();Object.entries(v).forEach(([k,x])=>x&&q.set(k,x));if(formData(form).has('availableOnly'))q.set('availableOnly','true');location.hash=`#/search${q.size?'?'+q.toString():''}`;return;}
   if(kind==='quote'){
-   if(!selectedSlot)throw new Error('Choose an available slot before requesting a quote.');
    const startAt=new Date(v.startAt).toISOString(),endAt=new Date(v.endAt).toISOString();
    if(new Date(endAt)<=new Date(startAt))throw new Error('Departure must be after arrival.');
    quoteParams={vehicleId:v.vehicleId,startAt,endAt,startLocal:v.startAt,endLocal:v.endAt};
    quoteCache=await api.quote({locationId:Number(currentLocation.id),vehicleId:Number(v.vehicleId),startAt,endAt});
-   if(!quoteCache.slots?.some(s=>String(s.id)===String(selectedSlot.id)))selectedSlot=null;
+   if(selectedSlot&&!quoteCache.slots?.some(s=>String(s.id)===String(selectedSlot.id)))selectedSlot=null;
    await loadPage();return;
   }
   if(kind==='vehicle'){
@@ -229,6 +235,38 @@ async function submitForm(form){
   if(kind==='report-filter'){const q=new URLSearchParams();if(v.from)q.set('from',v.from);if(v.to)q.set('to',v.to);location.hash=`#/admin-reports${q.size?'?'+q.toString():''}`;return;}
  }catch(error){notify(error.message,true);}
 }
+function showSelectedSlot(){
+  document.querySelectorAll('.slot[data-action="choose-slot"]').forEach(slot=>{
+    const selected=selectedSlot&&String(slot.dataset.id)===String(selectedSlot.id);
+    slot.classList.toggle('selected',selected);
+    slot.setAttribute('aria-pressed',selected?'true':'false');
+  });
+  const amount=quotedAmount();
+  const summary=document.querySelector('[data-testid="quote-summary"]');
+  if(summary&&amount){
+    summary.innerHTML=`<strong>Estimate: ${money(amount.fee)}</strong><div>${amount.hours} billable hour${amount.hours===1?'':'s'} · ${esc(quoteCache.currency||'INR')}</div>${quoteCache.pricingRule?`<small>${esc(quoteCache.pricingRule)}</small>`:''}`;
+  }
+  let confirmBtn=document.querySelector('[data-action="confirm-booking"]');
+  if(selectedSlot&&quoteCache){
+    if(!confirmBtn){
+      const kv=document.createElement('div');
+      kv.className='kv';
+      kv.innerHTML=`<span>Selected slot</span><strong></strong>`;
+      confirmBtn=document.createElement('button');
+      confirmBtn.className='btn btn-primary btn-block';
+      confirmBtn.dataset.action='confirm-booking';
+      confirmBtn.setAttribute('data-testid','button-confirm-booking');
+      confirmBtn.textContent='Confirm reservation';
+      summary?.insertAdjacentElement('afterend',kv);
+      kv.insertAdjacentElement('afterend',confirmBtn);
+    }
+    const label=confirmBtn.previousElementSibling?.querySelector('strong');
+    if(label)label.textContent=selectedSlot.code;
+  }else if(confirmBtn){
+    if(confirmBtn.previousElementSibling?.classList.contains('kv'))confirmBtn.previousElementSibling.remove();
+    confirmBtn.remove();
+  }
+}
 async function action(button){
  const a=button.dataset.action,id=button.dataset.id;
  try{
@@ -240,9 +278,14 @@ async function action(button){
   if(a==='vehicle-add'){vehicleForm();return;}
   if(a==='vehicle-edit'){const vehicles=listOf(await api.vehicles());vehicleForm(vehicles.find(v=>String(v.id)===String(id))||{});return;}
   if(a==='vehicle-delete'){if(confirm('Delete this vehicle? You cannot undo this action.')){await api.deleteVehicle(id);notify('Vehicle deleted.');await refresh();}return;}
-  if(a==='choose-slot'){selectedSlot=slotsCache.find(s=>String(s.id)===String(id));quoteCache=null;await loadPage();return;}
+  if(a==='choose-slot'){
+   const slot=slotsCache.find(s=>String(s.id)===String(id))||null;
+   if(!slot||slot.status==='DISABLED')return;
+   if(Array.isArray(quoteCache?.slots)&&!quoteCache.slots.some(s=>String(s.id)===String(slot.id)))return;
+   selectedSlot=slot;showSelectedSlot();return;
+  }
   if(a==='confirm-booking'){
-   if(!selectedSlot||!quoteCache)throw new Error('Choose a slot and request a quote first.');
+   if(!selectedSlot||!quoteCache||!quoteCache.slots?.some(s=>String(s.id)===String(selectedSlot.id)))throw new Error('Choose an available slot for this visit before confirming.');
    const booking=await api.createBooking({locationId:Number(currentLocation.id),vehicleId:Number(quoteParams.vehicleId),startAt:quoteParams.startAt,endAt:quoteParams.endAt,slotId:Number(selectedSlot.id)});
    notify(`Reservation confirmed · ${booking.reference}`);setRoute('bookings');return;
   }
@@ -277,7 +320,7 @@ document.addEventListener('click',event=>{
  if(event.target.classList.contains('modal-backdrop'))closeModal();
  if(event.target.closest('.nav-link')&&innerWidth<=700)document.querySelector('#sidebar')?.classList.remove('open');
 });
-window.addEventListener('hashchange',()=>{user=null;loadPage();});
+window.addEventListener('hashchange',()=>{loadPage();});
 window.addEventListener('parksync:unauthorized',()=>{user=null;authPage('login','Your session expired. Please sign in again.');});
 if(!location.hash)location.hash='#/dashboard';
 loadPage();

@@ -2,7 +2,9 @@ package com.parksync.backend.repository;
 
 import com.parksync.backend.model.Booking;
 import com.parksync.backend.model.BookingStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
@@ -38,6 +40,46 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
                           @Param("cancelled") BookingStatus cancelled,
                           @Param("requestedStart") Instant requestedStart,
                           @Param("requestedEnd") Instant requestedEnd);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select b from Booking b
+        where b.slot.id = :slotId
+          and b.status <> :cancelled
+          and b.startAt < :requestedEnd
+          and b.endAt > :requestedStart
+        """)
+    List<Booking> lockOverlapping(@Param("slotId") Long slotId,
+                                  @Param("cancelled") BookingStatus cancelled,
+                                  @Param("requestedStart") Instant requestedStart,
+                                  @Param("requestedEnd") Instant requestedEnd);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select b from Booking b
+        where b.slot.id = :slotId
+          and b.id <> :excludedId
+          and b.status <> :cancelled
+          and b.startAt < :requestedEnd
+          and b.endAt > :requestedStart
+        """)
+    List<Booking> lockOverlappingExcept(@Param("slotId") Long slotId,
+                                        @Param("excludedId") Long excludedId,
+                                        @Param("cancelled") BookingStatus cancelled,
+                                        @Param("requestedStart") Instant requestedStart,
+                                        @Param("requestedEnd") Instant requestedEnd);
+
+    @Query("""
+        select distinct b.slot.id from Booking b
+        where b.location.id = :locationId
+          and b.status <> :cancelled
+          and b.startAt < :requestedEnd
+          and b.endAt > :requestedStart
+        """)
+    List<Long> findOverlappingSlotIds(@Param("locationId") Long locationId,
+                                      @Param("cancelled") BookingStatus cancelled,
+                                      @Param("requestedStart") Instant requestedStart,
+                                      @Param("requestedEnd") Instant requestedEnd);
 
     @Query("""
         select b from Booking b
