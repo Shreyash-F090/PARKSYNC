@@ -13,7 +13,9 @@ import com.parksync.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -139,7 +141,11 @@ public class LocationService {
     }
 
     private LocationDto mapLocation(ParkingLocation location) {
-        return ApiMapper.location(location, slots.findAllByLocationIdOrderByCodeAsc(location.getId()));
+        List<ParkingSlot> slotList = slots.findAllByLocationIdOrderByCodeAsc(location.getId());
+        Instant now = Instant.now();
+        Set<Long> reservedNow = new HashSet<>(bookings.findOverlappingSlotIds(
+                location.getId(), BookingStatus.CANCELLED, now, now.plusSeconds(1)));
+        return ApiMapper.location(location, slotList, reservedNow);
     }
 
     private AppUser actor(Long actorId) {

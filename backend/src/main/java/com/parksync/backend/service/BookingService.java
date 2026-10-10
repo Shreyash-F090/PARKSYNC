@@ -51,7 +51,7 @@ public class BookingService {
             throw ApiException.conflict("This facility does not list support for the selected vehicle type.");
         }
         List<ParkingSlot> eligible = slots.findAllByLocationIdOrderByCodeAsc(location.getId()).stream()
-                .filter(slot -> slot.getStatus() == SlotStatus.AVAILABLE)
+                .filter(slot -> slot.getStatus() != SlotStatus.DISABLED)
                 .filter(slot -> slot.getVehicleTypes().contains(vehicle.getType()))
                 .filter(slot -> !bookings.existsOverlap(slot.getId(), BookingStatus.CANCELLED,
                         input.startAt(), input.endAt()))
@@ -98,8 +98,8 @@ public class BookingService {
         if (!slot.getLocation().getId().equals(location.getId())) {
             throw ApiException.badRequest("The selected slot does not belong to this facility.");
         }
-        if (slot.getStatus() != SlotStatus.AVAILABLE || !slot.getVehicleTypes().contains(vehicle.getType())
-                || bookings.existsOverlap(slot.getId(), BookingStatus.CANCELLED, input.startAt(), input.endAt())) {
+        if (slot.getStatus() == SlotStatus.DISABLED || !slot.getVehicleTypes().contains(vehicle.getType())
+                || overlaps(slot.getId(), input.startAt(), input.endAt())) {
             throw ApiException.conflict("That slot is no longer available for the selected visit time.");
         }
         BigDecimal rate = slot.getHourlyRate() == null ? location.getHourlyRate() : slot.getHourlyRate();
@@ -146,7 +146,9 @@ public class BookingService {
         ParkingSlot slot = slots.findByIdForUpdate(booking.getSlot().getId())
                 .orElseThrow(() -> ApiException.notFound("Parking slot not found."));
         if (slot.getStatus() == SlotStatus.DISABLED
-                || bookings.existsBySlotIdAndStatusIn(slot.getId(), List.of(BookingStatus.ACTIVE))) {
+                || bookings.existsBySlotIdAndStatusIn(slot.getId(), List.of(BookingStatus.ACTIVE))
+                || !bookings.lockOverlappingExcept(slot.getId(), booking.getId(), BookingStatus.CANCELLED,
+                        booking.getStartAt(), booking.getEndAt()).isEmpty()) {
             throw ApiException.conflict("This slot is not accepting check-ins.");
         }
         booking.setStatus(BookingStatus.ACTIVE);
@@ -174,7 +176,10 @@ public class BookingService {
         booking.setStatus(BookingStatus.COMPLETED);
         ParkingSlot slot = slots.findByIdForUpdate(booking.getSlot().getId())
                 .orElseThrow(() -> ApiException.notFound("Parking slot not found."));
-        slot.setStatus(SlotStatus.AVAILABLE);
+        Instant now = Instant.now();
+        boolean reservedNow = !bookings.lockOverlappingExcept(slot.getId(), booking.getId(), BookingStatus.CANCELLED,
+                now, now.plusSeconds(1)).isEmpty();
+        slot.setStatus(reservedNow ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE);
         notifications.create(booking.getOwner(), "Vehicle exit recorded",
                 "Booking " + booking.getReference() + " is complete. Final fee: ₹" + booking.getFinalFee()
                         + ". Payment records in this app are demonstrations only.");
@@ -237,6 +242,10 @@ public class BookingService {
                 ? payments.findAllByOrderByCreatedAtDesc()
                 : payments.findAllByStatusOrderByCreatedAtDesc(status.toUpperCase(Locale.ROOT));
         return result.stream().map(ApiMapper::payment).toList();
+    }
+
+    private boolean overlaps(Long slotId, Instant start, Instant end) {
+        return !bookings.lockOverlapping(slotId, BookingStatus.CANCELLED, start, end).isEmpty();
     }
 
     private AppUser activeUser(Long id) {
