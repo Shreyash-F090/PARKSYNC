@@ -12,12 +12,20 @@ spring:
     username: ${DB_USER:parksync}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 1
+      data-source-properties:
+        connectTimeout: 10000
   jpa:
     open-in-view: false
+    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
+        hbm2ddl:
+          jdbc_metadata_extraction_strategy: grouped
         jdbc:
           time_zone: UTC
         format_sql: false
